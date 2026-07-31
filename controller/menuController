@@ -1,0 +1,32 @@
+module.exports = async (sock, m, { jid, sender, body }) => {
+    try {
+        const reply = (text) => sock.sendMessage(jid, { text }, { quoted: m })
+        const args = body.trim().split(/\s+/)
+        const cmd = args[0].toLowerCase()
+
+        switch (cmd) {
+            case ".menu": {
+                let text = `[ *Menu yang tersedia* \n\n`
+                text += `• \`.menu\` - Menampilkan pesan ini\n`
+                text += `• \`.sticker\` - Membuat stiker\n`
+                text += `• \`.dl\` - Download media\n`
+                return reply(text)
+            }
+
+            case ".sticker":
+            case ".s": {
+                return reply("Fitur sticker sedang diproses...")
+            }
+
+            case ".dl": {
+                return reply("Silakan masukkan URL yang ingin di-download.")
+            }
+
+            default:
+                // Jika command titik lain di luar menu, abaikan atau beri respons
+                break
+        }
+    } catch (err) {
+        console.log("Error di menuController:", err)
+    }
+}
