@@ -1,5 +1,6 @@
 const RoleModel = require('../models/RoleModel')
 const GroupModel = require('../models/GroupModel')
+const MenuModel = require('../models/MenuModel')
 
 function clearJid(jid) {
     if (!jid) return ""
@@ -35,24 +36,54 @@ module.exports = async (sock, m, context) => {
         if (cleanNum) targetJid = `${cleanNum}@s.whatsapp.net`
     }
 
+    // 1. Menu Bantuan Otoritas (-c help) -> UI Cyber Terminal
     if (cmd === "help" || !cmd) {
-        let helpText = `🛡️ *NAYOZU BOT - ADMINISTRATOR HELP*\n\n` +
-            `> *Daftar Perintah Pengelolaan & Kontrol Bot*\n\n` +
-            `*   \`-c info\` - Menampilkan informasi status sistem bot.\n` +
-            `*   \`-c reg\` - Mendaftarkan grup ke sistem database (di dalam grup atau via \`-c reg <id_grup>\`).\n` +
-            `*   \`-c addguest @user [durasi]\` - Memberikan akses guest sementara (cth: \`2h\` atau \`1d\`).\n` +
-            `*   \`-c addme <id_grup>\` - Menarik & menambahkan diri Anda ke grup tujuan.\n` +
-            `*   \`-c rct <id_grup> <pesan>\` - Mengirim pesan remote secara langsung ke suatu grup.\n` +
-            `*   \`-c bc <pesan>\` - Melakukan siaran/broadcast ke seluruh grup terdaftar.\n` +
-            `*   \`-c listgr [page]\` - Melihat daftar ID grup yang sudah *Registered*.\n` +
-            `*   \`-c listgs [page]\` - Melihat daftar ID grup *Saved* (belum terdaftar).\n` +
-            `*   \`-c gi <id_grup>\` - Melihat informasi detail suatu grup.\n`
+        const otoritasHelp = `╭── ⫹⫺ [ 𝗦𝗬𝗦𝗧𝗘𝗠 𝗢𝗧𝗢𝗥𝗜𝗧𝗔𝗦 ] ⫹⫺
+│ 👤 *User:* @${sender.split('@')[0]}
+│ 🛡️ *Role:* ${isMaster ? 'Master 👑' : 'Moderator 🛡️'}
+│ ⏱️ *Session:* ${sessionId}
+╰───────────── ⧉
 
-        await sock.sendMessage(jid, { text: helpText }, { quoted: m })
+╭── ⫹⫺ [ 𝗖𝗢𝗠𝗠𝗔𝗡𝗗 𝗟𝗜𝗦𝗧 ]
+│ ⊳ \`-c info\`
+│   _Status sistem & statistik_
+│
+│ ⊳ \`-c reg\`
+│   _Daftarkan grup ke database_
+│
+│ ⊳ \`-c addmod / demod\`
+│   _Kelola akses moderator_
+│
+│ ⊳ \`-c addguest @user [durasi]\`
+│   _Beri akses guest (cth: 1h/1d)_
+│
+│ ⊳ \`-c addme <id_grup>\`
+│   _Tarik akun ini ke grup_
+│
+│ ⊳ \`-c rct <id_grup> <pesan>\`
+│   _Kirim pesan remote ke grup_
+│
+│ ⊳ \`-c bc <pesan>\`
+│   _Siaran ke semua grup terdaftar_
+│
+│ ⊳ \`-c listgr / listgs [page]\`
+│   _List grup Registered / Saved_
+│
+│ ⊳ \`-c gi <id_grup>\`
+│   _Cek informasi detail grup_
+│
+│ ⊳ \`-c desb / enb <.cmd>\`
+│   _Matikan/hidupkan fitur (Master)_
+╰───────────── ⧉`;
+
+        await sock.sendMessage(jid, { 
+            text: otoritasHelp, 
+            mentions: [sender] 
+        }, { quoted: m })
         return true
     }
 
-    // 2. Informasi Sistem Bot (-c info) - Master & Mod
+    // 2. Informasi Sistem Bot (-c info) -> UI Cyber Terminal
     if (cmd === "info") {
         try {
             const totalGroups = await GroupModel.countDocuments({ sessionId })
@@ -60,13 +91,17 @@ module.exports = async (sock, m, context) => {
             const modsCount = await RoleModel.countDocuments({ role: 'mod' })
             const guestsCount = await RoleModel.countDocuments({ role: 'guest' })
 
-            const infoText = `🤖 *NAYOZU BOT - SYSTEM INFO*\n\n` +
-                `📦 *Session ID:* ${sessionId}\n` +
-                `📊 *Total Grup Tersimpan:* ${totalGroups}\n` +
-                `✅ *Grup Terdaftar (Registered):* ${regGroups}\n` +
-                `🛡️ *Total Moderator:* ${modsCount}\n` +
-                `⏱️ *Total Guest Aktif:* ${guestsCount}\n` +
-                `👑 *Akses Peran Anda:* ${isMaster ? 'Master' : 'Moderator'}`
+            const infoText = `╭── ⫹⫺ [ 𝗦𝗬𝗦𝗧𝗘𝗠 𝗜𝗡𝗙𝗢 ] ⫹⫺
+│ *Session :* ${sessionId}
+│ *Role anda :* ${isMaster ? 'Master' : 'Moderator'}
+╰───────────── ⧉
+
+╭── ⫹⫺ [ 𝗗𝗔𝗧𝗔𝗕𝗔𝗦𝗘 𝗦𝗧𝗔𝗧𝗦 ]
+│  *Group total :* ${totalGroups}
+│ *Group terdaftar :* ${regGroups}
+│ *Moderator :* ${modsCount}
+│ *Guest :* ${guestsCount}
+╰───────────── ⧉`;
 
             await sock.sendMessage(jid, { text: infoText }, { quoted: m })
         } catch (err) {
@@ -75,7 +110,50 @@ module.exports = async (sock, m, context) => {
         return true
     }
 
-    // 3. Registrasi Grup (-c reg) - Bisa dari dalam grup atau lewat privat chat (-c reg <id_grup>)
+    // 3. Manajemen Status Menu (-c desb / -c enb) - HANYA MASTER
+    if (cmd === "desb" || cmd === "enb") {
+        if (!isMaster) {
+            await sock.sendMessage(jid, { text: "⚠️ Hanya Master yang berhak mengubah status menu." }, { quoted: m })
+            return true
+        }
+
+        let targetCommand = args[2]
+        if (!targetCommand) {
+            await sock.sendMessage(jid, { text: `⚠️ Format salah.\nGunakan: \`-c desb <.command> <alasan>\` atau \`-c enb <.command>\`` }, { quoted: m })
+            return true
+        }
+
+        targetCommand = targetCommand.replace(/^\./, '').trim()
+        const isActive = (cmd === "enb")
+        
+        const reasonIndex = args.indexOf(args[2]) + 1
+        const reason = args.slice(reasonIndex).join(' ') || "Menu belum tersedia dan masih tahap pengujian."
+
+        try {
+            await MenuModel.findOneAndUpdate(
+                { command: targetCommand },
+                { 
+                    command: targetCommand, 
+                    isActive: isActive, 
+                    disabledReason: isActive ? '' : reason, 
+                    updatedAt: new Date(), 
+                    updatedBy: sender 
+                },
+                { upsert: true, new: true }
+            )
+
+            const statusText = isActive ? 'Diaktifkan' : 'Dinonaktifkan'
+            let feedback = `✅ **Otoritas master diterapkan!**\n\n• **Command**: \`.${targetCommand}\`\n• **Status**: ${statusText}`
+            if (!isActive) feedback += `\n• **Alasan**: _${reason}_`
+
+            await sock.sendMessage(jid, { text: feedback }, { quoted: m })
+        } catch (err) {
+            await sock.sendMessage(jid, { text: `❌ Gagal memproses otoritas: ${err.message}` }, { quoted: m })
+        }
+        return true
+    }
+
+    // 4. Registrasi Grup (-c reg)
     if (cmd === "reg") {
         let targetRegJid = jid
         if (!isGroup) {
@@ -93,227 +171,206 @@ module.exports = async (sock, m, context) => {
         return true
     }
 
-    // 5. Add Mod (-c addmod) - Menyimpan JID & LID secara bersamaan
+    // 5. Add Moderator (-c addmod)
     if (cmd === "addmod") {
-        let rawTarget = null;
-
-        // Ambil target dari pesan yang di-reply (mencakup semua variasi struktur Baileys)
-        if (m.quoted) {
-            rawTarget = m.quoted.sender || 
-                        m.quoted.participant || 
-                        m.quoted.key?.participant || 
-                        m.msg?.contextInfo?.participant ||
-                        m.message?.extendedTextMessage?.contextInfo?.participant;
+        if (!isMaster) {
+            await sock.sendMessage(jid, { text: "⚠️ Hanya master yang berhak" }, { quoted: m })
+            return true
         }
 
-        // Ambil dari mention (@tag)
-        if (!rawTarget && m.mentionedJid && m.mentionedJid.length > 0) {
-            rawTarget = m.mentionedJid[0];
-        } else if (!rawTarget && m.msg?.contextInfo?.mentionedJid?.length > 0) {
-            rawTarget = m.msg.contextInfo.mentionedJid[0];
+        let rawTarget = null
+        let targetAlt = null
+
+        const contextInfo = m.message?.extendedTextMessage?.contextInfo ||
+                            m.message?.imageMessage?.contextInfo ||
+                            m.message?.videoMessage?.contextInfo ||
+                            m.message?.documentMessage?.contextInfo ||
+                            m.msg?.contextInfo
+
+        if (contextInfo && contextInfo.participant) {
+            rawTarget = contextInfo.participant
+            if (contextInfo.participantAlt) targetAlt = contextInfo.participantAlt
         }
 
-        // Ambil dari argumen teks manual (Nomor / JID / LID)
-        if (!rawTarget && args[2]) {
-            const inputArg = args[2].trim();
+        if (!rawTarget && m.quoted) {
+            rawTarget = m.quoted.sender || m.quoted.participant || m.quoted.key?.participant
+            if (m.quoted.key?.participantAlt) targetAlt = m.quoted.key.participantAlt
+        }
+
+        if (!rawTarget) {
+            const mentions = m.mentionedJid || contextInfo?.mentionedJid || m.msg?.mentionedJid
+            if (Array.isArray(mentions) && mentions.length > 0) {
+                rawTarget = mentions[0]
+            }
+        }
+
+        if (!rawTarget && args && args[2]) {
+            const inputArg = args[2].trim()
             if (inputArg.includes("@")) {
-                rawTarget = inputArg;
+                rawTarget = inputArg
             } else {
-                const cleanNum = inputArg.replace(/[^0-9]/g, "");
-                if (cleanNum.length >= 5) {
-                    rawTarget = cleanNum + "@s.whatsapp.net";
-                }
+                const cleanNum = inputArg.replace(/[^0-9]/g, "")
+                if (cleanNum.length >= 5) rawTarget = cleanNum + "@s.whatsapp.net"
             }
         }
 
         if (!rawTarget) {
-            await sock.sendMessage(jid, { 
-                text: "⚠️ Format salah.\n\nGunakan salah satu cara:\n1. Reply pesan target lalu ketik `-c addmod`\n2. Mention target: `-c addmod @user`\n3. Masukkan nomor: `-c addmod 628xxx`" 
-            }, { quoted: m });
-            return true;
+            await sock.sendMessage(jid, { text: "⚠️ Format salah.\nGunakan: Reply pesan target, mention (@tag), atau ketik nomor." }, { quoted: m })
+            return true
         }
 
-        // Ambil metadata grup untuk memetakan pasangan JID dan LID yang valid
-        let groupMeta = null;
+        let cleanedRaw = clearJid(rawTarget)
+        let cleanedAlt = targetAlt ? clearJid(targetAlt) : null
+
+        if (cleanedRaw) cleanedRaw = cleanedRaw.replace(/:[0-9]+/g, '')
+        if (cleanedAlt) cleanedAlt = cleanedAlt.replace(/:[0-9]+/g, '')
+
+        let realJid = ""
+        let realLid = ""
+
+        if (cleanedRaw.endsWith("@s.whatsapp.net")) realJid = cleanedRaw
+        if (cleanedRaw.endsWith("@lid")) realLid = cleanedRaw
+        
+        if (cleanedAlt) {
+            if (cleanedAlt.endsWith("@s.whatsapp.net")) realJid = cleanedAlt
+            if (cleanedAlt.endsWith("@lid")) realLid = cleanedAlt
+        }
+
         try {
-            groupMeta = await sock.groupMetadata(jid);
+            if (realLid && !realJid) {
+                const foundJid = await sock.signalRepository.lidMapping.getPNForLID(realLid)
+                if (foundJid) realJid = foundJid.replace(/:[0-9]+/g, '')
+            } else if (realJid && !realLid) {
+                const foundLid = await sock.signalRepository.lidMapping.getLIDForPN(realJid)
+                if (foundLid) realLid = foundLid
+            }
         } catch (e) {}
 
-        let realJid = "";
-        let realLid = "";
+        if ((!realJid || !realLid) && jid.endsWith("@g.us")) {
+            try {
+                const groupMeta = await sock.groupMetadata(jid)
+                if (groupMeta && groupMeta.participants) {
+                    const participant = groupMeta.participants.find(p => 
+                        p.id?.replace(/:[0-9]+/g, '') === realJid || 
+                        p.lid === realLid || 
+                        p.id?.replace(/:[0-9]+/g, '') === cleanedRaw || 
+                        p.lid === cleanedRaw
+                    )
 
-        if (groupMeta && groupMeta.participants) {
-            const participant = groupMeta.participants.find(p => 
-                p.id === rawTarget || p.lid === rawTarget
-            );
-
-            if (participant) {
-                // Ekstraksi JID telepon asli (@s.whatsapp.net)
-                if (participant.id && participant.id.endsWith("@s.whatsapp.net")) {
-                    realJid = participant.id;
-                } else if (participant.lid && participant.lid.endsWith("@s.whatsapp.net")) {
-                    realJid = participant.lid;
+                    if (participant) {
+                        if (participant.id) realJid = participant.id.replace(/:[0-9]+/g, '')
+                        if (participant.lid) realLid = participant.lid
+                    }
                 }
-
-                // Ekstraksi LID (@lid)
-                if (participant.lid && participant.lid.endsWith("@lid")) {
-                    realLid = participant.lid;
-                } else if (participant.id && participant.id.endsWith("@lid")) {
-                    realLid = participant.id;
-                }
-            }
+            } catch (e) {}
         }
 
-        // Fallback jika tidak ditemukan di metadata grup
-        if (!realJid && rawTarget.endsWith("@s.whatsapp.net")) {
-            realJid = rawTarget;
-        }
-        if (!realLid && rawTarget.endsWith("@lid")) {
-            realLid = rawTarget;
-        }
-
-        // Validasi keamanan: JID wajib berformat nomor telepon asli (@s.whatsapp.net)
-        if (!realJid || realJid.includes("@lid") || !realJid.endsWith("@s.whatsapp.net")) {
-            await sock.sendMessage(jid, { 
-                text: `⚠️ Gagal: Tidak dapat menemukan JID nomor telepon asli (@s.whatsapp.net) untuk target (\`${rawTarget}\`). Pastikan target berada di dalam grup yang sama.` 
-            }, { quoted: m });
-            return true;
+        if (!realJid && !realLid) {
+            await sock.sendMessage(jid, { text: `⚠️ Gagal mengenali identitas target (\`${rawTarget}\`).` }, { quoted: m })
+            return true
         }
 
         try {
-            // SIMPAN KEDUANYA (jid & lid) ke database MongoDB secara bersamaan
+            const identifiers = [...new Set([cleanedRaw, cleanedAlt, realJid, realLid])].filter(Boolean)
+            const queryFilter = { $or: [{ jid: { $in: identifiers } }, { lid: { $in: identifiers } }] }
+
             await RoleModel.findOneAndUpdate(
-                { jid: realJid },
-                { 
-                    jid: realJid, 
-                    lid: realLid || "", 
-                    role: "mod", 
-                    addedAt: new Date(),
-                    addedBy: sender
-                },
+                queryFilter,
+                { jid: realJid || "", lid: realLid || "", role: "mod", addedAt: new Date(), addedBy: sender },
                 { upsert: true, new: true }
-            );
+            )
 
-            await sock.sendMessage(jid, { 
-                text: `✅ Berhasil menyimpan Moderator dengan data lengkap!\n\n• **JID (Telepon)**: \`${realJid}\`\n• **LID**: \`${realLid || "Tidak terdeteksi"}\`` 
-            }, { quoted: m });
-
+            await sock.sendMessage(jid, { text: `✅ **Berhasil menyimpan Moderator!**\n\n• **JID**: \`${realJid || "Tidak Terdeteksi"}\`\n• **LID**: \`${realLid || "Tidak Terdeteksi"}\`` }, { quoted: m })
         } catch (err) {
-            await sock.sendMessage(jid, { text: `❌ Gagal menyimpan ke database: ${err.message}` }, { quoted: m });
+            await sock.sendMessage(jid, { text: `❌ Gagal ke database: ${err.message}` }, { quoted: m })
+        }
+        return true
+    }
+           
+    // 6. Demod (-c demod)
+    if (cmd === "demod") {
+        if (!isMaster) {
+            await sock.sendMessage(jid, { text: "⚠️ Hanya master yang berhak" }, { quoted: m })
+            return true
         }
 
-        return true;
-    }
+        let rawTarget = null
+        let targetAlt = null
 
+        const contextInfo = m.message?.extendedTextMessage?.contextInfo ||
+                            m.message?.imageMessage?.contextInfo ||
+                            m.message?.videoMessage?.contextInfo ||
+                            m.message?.documentMessage?.contextInfo ||
+                            m.msg?.contextInfo
 
-    // 6. Demod (-c demod) - Mendukung Reply, Mention, atau Input Manual & Cross-reference
-    if (cmd === "demod") {
-    if (!isMaster) {  await sock.sendMessage(jid, { text: "Hanya master yang berhak"}, { quoted: m })
-    return true
-    }
-        let rawTarget = null;
-        // Skenario 1: Mengambil target dari pesan yang di-reply
-        if (m.quoted && m.quoted.sender) {
-            rawTarget = m.quoted.sender;
-        } 
-        // Skenario 2: Mengambil target dari mention (@tag) di argumen
-        else if (m.mentionedJid && m.mentionedJid.length > 0) {
-            rawTarget = m.mentionedJid[0];
-        } 
-        // Skenario 3: Mengambil dari teks/argumen langsung (Nomor atau JID)
-        else if (args[2]) {
-            const inputArg = args[2].trim();
+        if (contextInfo && contextInfo.participant) {
+            rawTarget = contextInfo.participant
+            if (contextInfo.participantAlt) targetAlt = contextInfo.participantAlt
+        }
+
+        if (!rawTarget && m.quoted) {
+            rawTarget = m.quoted.sender || m.quoted.participant || m.quoted.key?.participant
+            if (m.quoted.key?.participantAlt) targetAlt = m.quoted.key.participantAlt
+        }
+
+        if (!rawTarget) {
+            const mentions = m.mentionedJid || contextInfo?.mentionedJid || m.msg?.mentionedJid
+            if (Array.isArray(mentions) && mentions.length > 0) rawTarget = mentions[0]
+        }
+
+        if (!rawTarget && args && args[2]) {
+            const inputArg = args[2].trim()
             if (inputArg.includes("@")) {
-                rawTarget = inputArg;
+                rawTarget = inputArg
             } else {
-                const cleanNum = inputArg.replace(/[^0-9]/g, "");
-                if (cleanNum.length >= 5) {
-                    rawTarget = cleanNum + "@s.whatsapp.net";
-                }
+                const cleanNum = inputArg.replace(/[^0-9]/g, "")
+                if (cleanNum.length >= 5) rawTarget = cleanNum + "@s.whatsapp.net"
             }
         }
 
         if (!rawTarget) {
-            await sock.sendMessage(jid, { 
-                text: "⚠️ Format salah.\n\nGunakan salah satu cara berikut untuk mencabut Mod:\n1. Reply pesan target lalu ketik `-c demod`\n2. Mention target: `-c demod @user`\n3. Masukkan nomor: `-c demod 628xxx`" 
-            }, { quoted: m });
-            return true;
+            await sock.sendMessage(jid, { text: "⚠️ Format salah.\nGunakan: Reply pesan target, mention (@tag), atau ketik nomor." }, { quoted: m })
+            return true
         }
 
-        // Ambil metadata grup untuk cross-reference pemetaan JID dan LID
-        let groupMeta = null;
-        try {
-            groupMeta = await sock.groupMetadata(jid);
-        } catch (e) {
-            // Abaikan jika tidak di grup atau bot tidak punya akses
-        }
+        let cleanedRaw = clearJid(rawTarget)
+        let cleanedAlt = targetAlt ? clearJid(targetAlt) : null
 
-        let realJid = "";
-        let realLid = "";
+        if (cleanedRaw) cleanedRaw = cleanedRaw.replace(/:[0-9]+/g, '')
+        if (cleanedAlt) cleanedAlt = cleanedAlt.replace(/:[0-9]+/g, '')
 
-        if (rawTarget.endsWith("@lid")) {
-            realLid = rawTarget;
-            if (groupMeta && groupMeta.participants) {
-                const found = groupMeta.participants.find(p => p.lid === rawTarget || p.id === rawTarget);
-                if (found && found.id && found.id.endsWith("@s.whatsapp.net")) {
-                    realJid = found.id;
-                }
-            }
-        } else if (rawTarget.endsWith("@s.whatsapp.net")) {
-            realJid = rawTarget;
-            if (groupMeta && groupMeta.participants) {
-                const found = groupMeta.participants.find(p => p.id === rawTarget);
-                if (found && found.lid) {
-                    realLid = found.lid;
-                }
-            }
-        }
-
-        // Fallback pengaman jika groupMeta gagal/tidak ada
-        if (!realJid && rawTarget.endsWith("@s.whatsapp.net")) realJid = rawTarget;
-        if (!realLid && rawTarget.endsWith("@lid")) realLid = rawTarget;
+        let realJid = cleanedRaw.endsWith("@s.whatsapp.net") ? cleanedRaw : (cleanedAlt?.endsWith("@s.whatsapp.net") ? cleanedAlt : "")
+        let realLid = cleanedRaw.endsWith("@lid") ? cleanedRaw : (cleanedAlt?.endsWith("@lid") ? cleanedAlt : "")
 
         try {
-            // Kumpulkan berbagai kemungkinan format penyimpanan di database untuk dihapus
-            const orConditions = [{ role: "mod" }];
-            const targetIdentifiers = [];
-            
-            if (realJid) targetIdentifiers.push(realJid);
-            if (realLid) targetIdentifiers.push(realLid);
-            if (rawTarget) targetIdentifiers.push(rawTarget);
+            if (realLid && !realJid) {
+                const foundJid = await sock.signalRepository.lidMapping.getPNForLID(realLid)
+                if (foundJid) realJid = foundJid.replace(/:[0-9]+/g, '')
+            } else if (realJid && !realLid) {
+                const foundLid = await sock.signalRepository.lidMapping.getLIDForPN(realJid)
+                if (foundLid) realLid = foundLid
+            }
+        } catch (e) {}
 
-            // Buat query pencarian fleksibel berdasarkan field jid atau lid
-            const deleteQuery = {
-                role: "mod",
-                $or: [
-                    { jid: { $in: targetIdentifiers } },
-                    { lid: { $in: targetIdentifiers } }
-                ]
-            };
+        try {
+            const identifiers = [...new Set([cleanedRaw, cleanedAlt, realJid, realLid])].filter(Boolean)
+            const deleteFilter = { role: "mod", $or: [{ jid: { $in: identifiers } }, { lid: { $in: identifiers } }] }
 
-            const deletedRecord = await RoleModel.findOneAndDelete(deleteQuery);
+            const result = await RoleModel.findOneAndDelete(deleteFilter)
 
-            if (!deletedRecord) {
-                await sock.sendMessage(jid, { 
-                    text: `⚠️ Gagal: Target (\`${rawTarget}\`) tidak ditemukan di dalam daftar Moderator database.` 
-                }, { quoted: m });
-                return true;
+            if (!result) {
+                await sock.sendMessage(jid, { text: `⚠️ Target tidak terdaftar sebagai Moderator.` }, { quoted: m })
+                return true
             }
 
-            await sock.sendMessage(jid, { 
-                text: `✅ Berhasil mencabut status Moderator dari target yang cocok dengan (\`${rawTarget}\`).` 
-            }, { quoted: m });
-
+            await sock.sendMessage(jid, { text: `🗑️ **Berhasil Menghapus Moderator!**\n\n• **JID**: \`${result.jid || "Tidak ada data"}\`\n• **LID**: \`${result.lid || "Tidak ada data"}\`\n• **Status**: Akses dicabut.` }, { quoted: m })
         } catch (err) {
-            await sock.sendMessage(jid, { text: `❌ Terjadi kesalahan saat menghapus dari database: ${err.message}` }, { quoted: m });
+            await sock.sendMessage(jid, { text: `❌ Gagal menghapus dari database: ${err.message}` }, { quoted: m })
         }
-
-        return true;
+        return true
     }
 
-    
-
-    // 6. Tambah Guest Berdurasi (-c addguest) - Master & Mod
+    // 7. Tambah Guest Berdurasi (-c addguest)
     if (cmd === "addguest") {
         const durationArg = args[3] || "1h"
         if (!targetJid) {
@@ -337,9 +394,9 @@ module.exports = async (sock, m, context) => {
         )
         await sock.sendMessage(jid, { text: `✅ Berhasil memberikan akses Guest kepada ${targetJid} selama ${durationArg}.` }, { quoted: m })
         return true
-  }
+    }
 
-    // 7. Tarik & Add Master/Mod ke Grup (-c addme <id_grup>) - Master & Mod
+    // 8. Tarik & Add Master/Mod ke Grup (-c addme <id_grup>)
     if (cmd === "addme") {
         const targetGroupRaw = args[2]
         if (!targetGroupRaw) {
@@ -350,12 +407,7 @@ module.exports = async (sock, m, context) => {
         const groupJid = formatGroupJid(targetGroupRaw)
 
         try {
-            const roleRecord = await RoleModel.findOne({
-                $or: [
-                    { jid: sender },
-                    { lid: sender }
-                ]
-            })
+            const roleRecord = await RoleModel.findOne({ $or: [{ jid: sender }, { lid: sender }] })
 
             if (!roleRecord || !roleRecord.jid) {
                 await sock.sendMessage(jid, { text: `⚠️ Gagal: Identitas Anda tidak ditemukan di database RoleModel.` }, { quoted: m })
@@ -364,8 +416,6 @@ module.exports = async (sock, m, context) => {
 
             let validParticipantJid = roleRecord.jid
 
-            // PENGAMANAN: Blokir JID berbasis LID (@lid) atau format non-nomor telepon 
-            // agar tidak mengirim payload rusak ke WhatsApp yang dapat memicu penangguhan grup (Group Suspension).
             if (validParticipantJid.includes("@lid") || !validParticipantJid.endsWith("@s.whatsapp.net")) {
                 await sock.sendMessage(jid, { text: `⚠️ Gagal: Akun Anda terdeteksi menggunakan format LID (@lid). Fitur -c addme hanya dapat digunakan oleh akun yang memiliki JID nomor telepon asli (@s.whatsapp.net).` }, { quoted: m })
                 return true
@@ -385,8 +435,7 @@ module.exports = async (sock, m, context) => {
         return true
     }
 
-
-    // 8. Remote Chat ke Suatu Grup (-c rct <id_grup> <pesan>) - Master & Mod
+    // 9. Remote Chat ke Suatu Grup (-c rct <id_grup> <pesan>)
     if (cmd === "rct") {
         const targetGroupRaw = args[2]
         const messageText = args.slice(3).join(" ")
@@ -407,7 +456,7 @@ module.exports = async (sock, m, context) => {
         return true
     }
 
-    // 9. Broadcast ke Semua Grup Terdaftar (-c bc <pesan>) - Master & Mod
+    // 10. Broadcast ke Semua Grup Terdaftar (-c bc <pesan>)
     if (cmd === "bc") {
         const broadcastMessage = args.slice(2).join(" ")
 
@@ -429,7 +478,7 @@ module.exports = async (sock, m, context) => {
 
             for (const group of registeredGroups) {
                 try {
-                    await sock.sendMessage(group.jid, { text: ` 📢 *PESAN SIARAN (BROADCAST)*\n\n${broadcastMessage}` })
+                    await sock.sendMessage(group.jid, { text: `📢 *PESAN SIARAN (BROADCAST)*\n\n${broadcastMessage}` })
                     successCount++
                     await new Promise(resolve => setTimeout(resolve, 1000))
                 } catch (e) {
@@ -444,7 +493,7 @@ module.exports = async (sock, m, context) => {
         return true
     }
 
-    // 10A. List Group Registered (-c listgr [page]) - Master & Mod
+    // 11A. List Group Registered (-c listgr)
     if (cmd === "listgr") {
         const page = parseInt(args[2]) || 1
         const perPage = 25
@@ -480,7 +529,7 @@ module.exports = async (sock, m, context) => {
         return true
     }
 
-    // 10B. List Group Saved / Belum Terdaftar (-c listgs [page]) - Master & Mod
+    // 11B. List Group Saved / Belum Terdaftar (-c listgs)
     if (cmd === "listgs") {
         const page = parseInt(args[2]) || 1
         const perPage = 25
@@ -516,7 +565,7 @@ module.exports = async (sock, m, context) => {
         return true
     }
 
-    // 11. Informasi Detail Grup (-c gi <id_grup>) - Master & Mod
+    // 12. Informasi Detail Grup (-c gi <id_grup>)
     if (cmd === "gi") {
         const targetGroupRaw = args[2]
         if (!targetGroupRaw) {
